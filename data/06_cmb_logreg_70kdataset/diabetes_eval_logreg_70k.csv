@@ -1,0 +1,3 @@
+"Model","Threshold","Accuracy","Recall (sensitivity)","Specificity","Precision","F1","ROC AUC","Brier score","Missed diabetes cases (false negatives)","Healthy people flagged (false positives)"
+Logistic regression (70k real rows),Default (0.50),0.7281145380725123,0.7485396780168115,0.7076923076923077,0.7191349575691213,0.733542757417103,0.8024656518387818,0.18060378635256596,1765.0,2052.0
+Logistic regression (70k real rows),Chosen (0.40),0.7270460859035544,0.8484114546231657,0.6056980056980057,0.682677977759945,0.7565747681361962,0.8024656518387818,0.18060378635256596,1064.0,2768.0
