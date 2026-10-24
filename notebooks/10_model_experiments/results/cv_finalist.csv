@@ -1,0 +1,2 @@
+finalist_id,inner_oof_target_reached,selection_status
+M1_current,True,The finalist had a training-derived threshold reaching the 85% inner OOF recall target in every outer fold; ranking uses outer-fold specificity.
