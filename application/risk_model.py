@@ -42,12 +42,6 @@ GENERAL_HEALTH = {1: "Excellent", 2: "Very good", 3: "Good", 4: "Fair", 5: "Poor
 
 BMI_MIN, BMI_MAX = 12, 98      # range of BMI values the model saw in training
 
-BMI_PLAUSIBLE_MIN, BMI_PLAUSIBLE_MAX = 10.0, 100.0   # reject combos outside this before clipping
-
-def is_plausible_bmi(bmi: float) -> bool:
-    """A BMI outside this range almost always means a typo'd height/weight, not a real person."""
-    return BMI_PLAUSIBLE_MIN <= bmi <= BMI_PLAUSIBLE_MAX
-
 
 def age_to_code(age_years: int) -> int:
     """Exact age -> BRFSS age group code (1-13)."""
