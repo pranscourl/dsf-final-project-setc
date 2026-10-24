@@ -66,23 +66,17 @@ def get_bundle(path: str) -> dict:
     return rm.load_bundle(path)
 
 
-model_files = rm.list_models()
-if not model_files:
-    st.error(f"No model file found in `{rm.MODELS_DIR}`. Run `07_modeling_cmu/02_train.ipynb` first.")
+chosen = rm.MODELS_DIR / rm.DEFAULT_MODEL
+if not chosen.is_file():
+    st.error(f"The selected model was not found: `{chosen}`. Rebuild it with "
+             "`notebooks/05_modeling_cmb(original70K)/02_train.ipynb`.")
     st.stop()
 
-with st.sidebar:
-    st.header("Model")
-    if len(model_files) > 1:
-        chosen = st.selectbox("Saved model", model_files, format_func=lambda p: p.name,
-                              help="Switch between the saved models to compare their answers.")
-    else:
-        chosen = model_files[0]
-    try:
-        bundle = get_bundle(str(chosen))
-    except Exception as e:                                    # corrupt file, wrong format, ...
-        st.error(f"Could not load `{chosen.name}`: {e}")
-        st.stop()
+try:
+    bundle = get_bundle(str(chosen))
+except Exception as e:                                        # corrupt file, wrong format, ...
+    st.error(f"Could not load the selected model: {e}")
+    st.stop()
 
 FEATURES = bundle["features"]
 unknown = [f for f in FEATURES if f not in KNOWN]
@@ -91,13 +85,13 @@ if unknown:
     st.stop()
 
 with st.sidebar:
-    st.caption(f"`{chosen.name}`")
+    st.header("About this model")
+    st.caption("70k M1 · real survey training data")
     st.write(f"**Questions asked:** {len(FEATURES)}")
-    st.write(f"**Flag threshold:** {bundle['threshold']:.2f}")
+    if bundle.get("training_data"):
+        st.write(f"**Training data:** {bundle['training_data']}")
     if "target_recall" in bundle:
-        st.write(f"**Recall goal:** {bundle['target_recall']:.0%}")
-    if "training_data" in bundle:
-        st.write(f"**Trained on:** {bundle['training_data']}")
+        st.write(f"**Training recall target:** {bundle['target_recall']:.0%}")
     if bundle.get("sklearn_version") and bundle["sklearn_version"] != sklearn.__version__:
         st.warning(f"The model was saved with scikit-learn {bundle['sklearn_version']}, but this app runs "
                    f"{sklearn.__version__}. Results may be wrong. Install the same version.")
@@ -109,9 +103,12 @@ with st.sidebar:
 # Header
 # ------------------------------------------------------------------------------------------------
 st.title("🩺 Diabetes Risk Screener")
-st.write("Answer the questions about yourself (or the person you are checking). The model estimates whether "
-         "a follow-up check for diabetes is worth considering, and gives tips on what to do next. All questions are "
-         "required except the email. Your answers are not saved anywhere.")
+st.write("Answer a few questions to see whether your responses resemble those of people in the survey who "
+         "reported that a health professional had diagnosed them with diabetes.")
+st.info("This school project uses a 2015 U.S. health survey. It does not diagnose diabetes or predict who will "
+        "develop it in the future. Your answers stay in this session unless you choose to email yourself a copy.",
+        icon="ℹ️")
+st.caption(f"The questionnaire uses {len(FEATURES)} answers. You can change any answer before submitting.")
 
 # Units sit outside the form so that the height and weight boxes change as soon as you switch.
 units = None
@@ -119,9 +116,10 @@ if "BMI" in FEATURES:
     units = st.radio("Units for height and weight", ["Metric (cm, kg)", "Imperial (ft/in, lb)"], horizontal=True)
 
 # ------------------------------------------------------------------------------------------------
-# The form: nothing is calculated until "Check my risk" is pressed.
+# The questionnaire updates as answers change; scoring happens only after submission.
 # ------------------------------------------------------------------------------------------------
 answers, shown, missing = {}, {}, []     # model codes, readable values, unanswered questions
+progress_slot = st.empty()
 
 
 def record(feature, label, code, display):
@@ -211,50 +209,51 @@ def ask_choice(feature, label, options: dict, help_text=None):
     record(feature, label, choice, None if choice is None else options[choice])
 
 
-with st.form("risk_form"):
-    for title, feats in SECTIONS:
-        feats = [f for f in feats if f in FEATURES]
-        if not feats:
-            continue
-        with st.container(border=True):
-            st.subheader(title)
-            yn = [f for f in feats if f in YES_NO]
-            for f in feats:
-                if f == "Sex": ask_sex()
-                elif f == "Age": ask_age()
-                elif f == "BMI": ask_height_weight()
-                elif f == "GenHlth": ask_general_health()
-                elif f == "PhysHlth":
-                    ask_days("PhysHlth", "Days in the past 30 when your physical health was not good",
-                             "Include physical illness and injury. 0 means none.")
-                elif f == "MentHlth":
-                    ask_days("MentHlth", "Days in the past 30 when your mental health was not good",
-                             "Include stress, depression and problems with emotions. 0 means none.")
-                elif f == "Education":
-                    ask_choice("Education", "Highest level of education completed", rm.EDUCATION)
-                elif f == "Income":
-                    ask_choice("Income", "Annual household income (US dollars)", rm.INCOME,
-                               "Total income of everyone in the household, before taxes. The survey used US dollars.")
-            if yn:                                            # Yes/No questions in two columns
-                cols = st.columns(2)
-                for i, f in enumerate(yn):
-                    ask_yes_no(f, cols[i % 2])
-
+for title, feats in SECTIONS:
+    feats = [f for f in feats if f in FEATURES]
+    if not feats:
+        continue
     with st.container(border=True):
-        st.subheader("Email me a copy (optional)")
-        if EMAIL_CFG:
-            st.caption("Add your email to receive your answers, the result and the advice in one message. "
-                       "Leave it empty to skip. Your address is used only to send this one email and is not saved. "
-                       "Email is not a private channel, so only use an address you are comfortable with.")
-        else:
-            st.caption("Email delivery is not set up on this computer yet (see `secrets.toml.example`).")
-        e1, e2 = st.columns(2)
-        email_raw = e1.text_input("Email address", key="q_email", placeholder="you@example.com",
-                                  disabled=not EMAIL_CFG)
-        name_raw = e2.text_input("Your name (for the greeting)", key="q_name", placeholder="optional",
-                                 disabled=not EMAIL_CFG, max_chars=60)
+        st.subheader(title)
+        yn = [f for f in feats if f in YES_NO]
+        for f in feats:
+            if f == "Sex": ask_sex()
+            elif f == "Age": ask_age()
+            elif f == "BMI": ask_height_weight()
+            elif f == "GenHlth": ask_general_health()
+            elif f == "PhysHlth":
+                ask_days("PhysHlth", "Days in the past 30 when your physical health was not good",
+                         "Include physical illness and injury. 0 means none.")
+            elif f == "MentHlth":
+                ask_days("MentHlth", "Days in the past 30 when your mental health was not good",
+                         "Include stress, depression and problems with emotions. 0 means none.")
+            elif f == "Education":
+                ask_choice("Education", "Highest level of education completed", rm.EDUCATION)
+            elif f == "Income":
+                ask_choice("Income", "Annual household income (US dollars)", rm.INCOME,
+                           "Total income of everyone in the household, before taxes. The survey used US dollars.")
+        if yn:                                                # Yes/No questions in two columns
+            cols = st.columns(2)
+            for i, f in enumerate(yn):
+                ask_yes_no(f, cols[i % 2])
 
-    submitted = st.form_submit_button("Check my risk", type="primary", use_container_width=True)
+answered = len(answers)
+progress_slot.progress(answered / len(FEATURES), text=f"{answered} of {len(FEATURES)} questions answered")
+
+with st.container(border=True):
+    st.subheader("Email me a copy (optional)")
+    if EMAIL_CFG:
+        st.caption("Your answers and result will be sent only to the address you enter. Email is not a private "
+                   "channel, so use an address you are comfortable with. Leave it blank to skip.")
+    else:
+        st.caption("Email delivery is not set up on this computer yet (see `secrets.toml.example`).")
+    e1, e2 = st.columns(2)
+    email_raw = e1.text_input("Email address", key="q_email", placeholder="you@example.com",
+                              disabled=not EMAIL_CFG)
+    name_raw = e2.text_input("Your name (for the greeting)", key="q_name", placeholder="optional",
+                             disabled=not EMAIL_CFG, max_chars=60)
+
+submitted = st.button("Show my screening result", type="primary", use_container_width=True)
 
 email = (email_raw or "").strip() if EMAIL_CFG else ""
 name = " ".join((name_raw or "").split()) if EMAIL_CFG else ""
@@ -268,7 +267,8 @@ if submitted:
     else:
         prediction = rm.predict(bundle, answers)
         advice = guidance.build(prediction["flagged"], answers, bundle.get("target_recall"))
-        result = {**prediction, **advice, "inputs": shown, "model": chosen.name, "email_status": None}
+        result = {**prediction, **advice, "inputs": shown, "answer_codes": dict(answers),
+                  "model": chosen.name, "email_status": None}
         if email:
             msg = emailer.build_message(email, name, {**prediction, "level": advice["level"]}, shown, advice,
                                         EMAIL_CFG["sender"], chosen.name)
@@ -276,6 +276,11 @@ if submitted:
                 ok, why = emailer.send(msg, EMAIL_CFG)
             result["email_status"] = (ok, email, why)
         st.session_state["result"] = result
+
+# Inputs rerun the app as they change, so remove an old result as soon as answers no longer match it.
+saved_result = st.session_state.get("result")
+if saved_result and saved_result.get("answer_codes") != answers:
+    st.session_state.pop("result", None)
 
 # ------------------------------------------------------------------------------------------------
 # Result
@@ -299,31 +304,12 @@ if result and result["model"] == chosen.name:
         else:
             st.warning(f"We could not send the email, but your result is shown here. {why}", icon="📧")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Estimated chance of diabetes", f"{result['adjusted']:.0%}",
-              help=f"The model score rescaled to the real-world rate of diabetes (about {rm.REAL_PREVALENCE:.0%} "
-                   "of surveyed adults). It is an approximation.")
-    c2.metric("Model score", f"{result['score']:.2f}",
-              help="Raw model output on the balanced training scale. It overstates real risk, so use it only "
-                   "to compare against the threshold.")
-    c3.metric("Flag threshold", f"{result['threshold']:.2f}",
-              help="People with a score at or above this are flagged. It is set low on purpose, to catch most "
-                   "people who have diabetes, at the cost of some false alarms.")
-
-    # Score bar with the threshold marked
-    fill, mark = result["score"] * 100, result["threshold"] * 100
-    colour = "#E8A33D" if result["flagged"] else "#3BA55D"
-    st.markdown(
-        f"""
-        <div style="position:relative;height:14px;border-radius:7px;background:rgba(128,128,128,.25);margin:14px 0 4px 0;">
-          <div style="width:{fill:.1f}%;height:100%;border-radius:7px;background:{colour};"></div>
-          <div style="position:absolute;left:{mark:.1f}%;top:-5px;width:3px;height:24px;background:currentColor;"></div>
-        </div>
-        <div style="font-size:0.8rem;opacity:.7;">Model score {result['score']:.2f} (bar) against the flag threshold
-        {result['threshold']:.2f} (vertical line)</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.expander("How to read this result"):
+        st.write("This is a model screening flag based on 14 answers. The model was trained on a balanced sample "
+                 "from a 2015 U.S. survey; this score is not a calibrated personal probability and may not fit "
+                 "other populations.")
+        st.write(f"Internal model score: **{result['score']:.2f}**; flag threshold: **{result['threshold']:.2f}**. "
+                 "These values describe the model calculation, not the chance that you have or will develop diabetes.")
 
     st.header("What you can do next")
     for i, section in enumerate(result["sections"]):

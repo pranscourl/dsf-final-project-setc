@@ -11,7 +11,7 @@ import joblib
 import pandas as pd
 
 MODELS_DIR = Path(__file__).parent / "models"
-DEFAULT_MODEL = "logreg_200k.joblib"
+DEFAULT_MODEL = "logreg_70k.joblib"
 
 # About 14% of the surveyed adults had diabetes. The model learned from 50/50 data, so its raw
 # probability overstates real risk; we rescale it to this prevalence (same formula as 03_evaluate).

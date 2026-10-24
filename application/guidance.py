@@ -8,8 +8,10 @@ not medical advice.
 """
 
 DISCLAIMER = ("This is a school project that uses a statistical model trained on a 2015 US health survey. "
-              "It can only suggest whether a check is worth considering. It cannot diagnose diabetes, and it is "
-              "not a substitute for a doctor. Only a blood test can confirm diabetes.")
+              "The model estimates whether answers resemble those of survey respondents who reported a diabetes "
+              "diagnosis. It does not diagnose diabetes or predict future diabetes, and it may not generalize to "
+              "other populations. It is not a substitute for a health professional. Only a blood test can confirm "
+              "diabetes.")
 
 WARNING_SIGNS = [
     "**Common warning signs:** being very thirsty, urinating often (especially at night), feeling very tired, "
@@ -39,23 +41,21 @@ def _verdict(flagged, target_recall):
     if flagged:
         return {
             "level": "higher",
-            "headline": "Higher risk: it is worth getting tested",
-            "summary": ("Your answers look similar to those of many people who have diabetes. This does **not** mean "
-                        "you have it, and it is not a diagnosis. A simple blood test can tell you for sure, and "
-                        "finding diabetes early makes it much easier to manage."),
+            "headline": "Follow-up screening is worth considering",
+            "summary": ("Your answers resemble responses from some survey participants who reported being diagnosed "
+                        "with diabetes. This result cannot tell whether you have diabetes. Ask a health professional "
+                        "whether a blood glucose or HbA1c test is appropriate for you."),
         }
     if target_recall:
-        missed = round((1 - target_recall) * 100)
-        caveat = (f"This tool is set up to catch about {round(target_recall * 100)} in 100 people who have "
-                  f"diabetes, so about {missed} in 100 are missed.")
+        caveat = (f"The model threshold was chosen with a training recall goal of about "
+                  f"{round(target_recall * 100)}%, but it can still miss people and this is not a personal guarantee.")
     else:
-        caveat = "This tool is set up to catch most people who have diabetes, but some are missed."
+        caveat = "This model can miss people, so a lower score cannot rule out diabetes."
     return {
         "level": "lower",
-        "headline": "Lower risk: you are unlikely to have diabetes right now",
-        "summary": ("Your answers look more like those of people without diabetes, which is good news. It is not a "
-                    f"guarantee, though. {caveat} Keep up healthy habits, and get tested if you have symptoms or "
-                    "you are 35 or older."),
+        "headline": "The model did not flag these answers",
+        "summary": ("This is not proof that you do not have diabetes. " + caveat + " If you have symptoms or "
+                    "concerns, talk with a health professional about testing."),
     }
 
 

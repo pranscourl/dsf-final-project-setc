@@ -56,14 +56,12 @@ def build_message(to, name, result, inputs, advice, sender, model_name):
     """result: output of risk_model.predict. inputs: {question: readable answer}. advice: guidance.build(...)."""
     when = datetime.now().strftime("%d %B %Y, %H:%M")
     greeting = f"Hello {name}," if name else "Hello,"
-    chance = f"{result['adjusted']:.0%}"
     accent = "#B26A00" if result["level"] == "higher" else "#1E7B45"
     background = "#FFF4E0" if result["level"] == "higher" else "#E8F6EE"
 
     # ---- plain text ----
     lines = [greeting, "", "Here is a copy of your diabetes risk screening.", f"Date: {when}", "",
-             "RESULT", advice["headline"], _plain(advice["summary"]),
-             f"Estimated chance of diabetes: about {chance} (an approximation)", "",
+             "RESULT", advice["headline"], _plain(advice["summary"]), "",
              "YOUR ANSWERS"]
     lines += [f"- {q}: {a}" for q, a in inputs.items()]
     for s in advice["sections"]:
@@ -90,7 +88,6 @@ def build_message(to, name, result, inputs, advice, sender, model_name):
 <div style="background:{background};border-left:5px solid {accent};padding:14px 16px;border-radius:6px">
   <div style="font-size:18px;font-weight:bold;color:{accent}">{html.escape(advice['headline'])}</div>
   <p style="margin:8px 0 0">{_bold_html(advice['summary'])}</p>
-  <p style="margin:8px 0 0;color:#555">Estimated chance of diabetes: about <strong>{chance}</strong> (an approximation).</p>
 </div>
 <h3 style="margin:24px 0 6px;font-size:16px">Your answers</h3>
 <table style="border-collapse:collapse;width:100%;font-size:14px">{rows}</table>
