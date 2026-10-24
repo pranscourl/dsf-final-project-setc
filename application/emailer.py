@@ -74,7 +74,7 @@ def build_message(to, name, result, inputs, advice, sender, model_name):
 
     # ---- plain text ----
     lines = [greeting, "", "Here is a copy of your diabetes risk screening.", f"Date: {when}", "",
-             "RESULT", advice["headline"], _plain(advice["summary"]), "",
+             "YOUR SCREENING RESULT.", advice["headline"], _plain(advice["summary"]), "",
              "YOUR ANSWERS"]
     lines += [f"- {q}: {a}" for q, a in inputs.items()]
     for s in advice["sections"]:
@@ -95,7 +95,7 @@ def build_message(to, name, result, inputs, advice, sender, model_name):
         for s in advice["sections"])
     body = f"""\
 <html><body style="font-family:Arial,Helvetica,sans-serif;color:#222;line-height:1.5;max-width:640px;margin:auto;padding:16px">
-<h2 style="margin-bottom:0">Your diabetes risk screening</h2>
+<h2 style="margin-bottom:0">YOUR SCREENING RESULT.</h2>
 <p style="color:#777;margin-top:2px">{html.escape(when)}</p>
 <p>{html.escape(greeting)}</p>
 <div style="background:{background};border-left:5px solid {accent};padding:14px 16px;border-radius:6px">

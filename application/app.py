@@ -71,7 +71,8 @@ SECTIONS = [
     ("Day-to-day health", ["GenHlth", "PhysHlth", "MentHlth", "DiffWalk"]),
     ("Lifestyle", ["Smoker", "PhysActivity", "Fruits", "Veggies", "HvyAlcoholConsump"]),
     ("Healthcare access", ["AnyHealthcare", "NoDocbcCost"]),
-    ("Education and income", ["Education", "Income"]),
+    ("Education", ["Education"]),
+    ("Income", ["Income"]),
 ]
 KNOWN = {f for _, fs in SECTIONS for f in fs}
 
@@ -411,7 +412,7 @@ if result and result["model"] == chosen.name:
     if result.get("ai_error"):
         st.warning(f"OpenAI guidance could not be generated ({result['ai_error']}). The local screening guidance is shown instead.")
     elif result.get("ai_used"):
-        st.caption("OpenAI drafted the personalized guidance using the answers you chose to share. Review it as general information only.")
+        st.caption("Only the ‘A hopeful note and ideas for you’ section was drafted by OpenAI from your result and relevant answer-based details. Other guidance on this page is fixed app text. Review AI suggestions as general information only.")
 
     with st.expander("How to read this result"):
         st.write("This is a model screening flag based on 14 answers. The model was trained on a balanced sample "
