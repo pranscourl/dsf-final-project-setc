@@ -45,6 +45,8 @@ Open the local address Streamlit prints, usually <http://localhost:8501>. The ap
 
 The app reports a model screening flag, not a diagnosis. Email is optional and disabled until configured. To enable it, create the config folder, copy `application/secrets.toml.example` to `application/.streamlit/secrets.toml`, fill in an SMTP app password, and keep the secrets file private. `.gitignore` excludes that file.
 
+OpenAI-generated guidance is also optional. Add an API key under the `[openai]` section in the same local `secrets.toml` file and restart the app. The checkbox is off by default. If selected, the screening answers and flag are sent to OpenAI to draft guidance; the app does not include the respondent's name or email in that API request. API usage may incur charges separate from ChatGPT. If AI is not configured, or a request fails, the app uses its local guidance instead. AI text is general information and can be wrong; it is not a diagnosis or treatment advice.
+
 ```powershell
 New-Item -ItemType Directory -Force application\.streamlit
 Copy-Item application\secrets.toml.example application\.streamlit\secrets.toml
@@ -54,7 +56,7 @@ Copy-Item application\secrets.toml.example application\.streamlit\secrets.toml
 
 | Path | Purpose |
 |---|---|
-| `application/` | Streamlit UI, model-loading and input conversion, guidance, optional email, and saved M1/M2 bundles. |
+| `application/` | Streamlit UI, model-loading and input conversion, local guidance, optional email and consent-based OpenAI personalization, and saved M1/M2 bundles. |
 | `data/01_original/` | Three original Kaggle CSV variants: three-category, binary balanced, and binary unbalanced. |
 | `data/02_clean/` | Cleaned versions created by the transformation notebooks. |
 | `data/03_clean+merged_unbalanced(cmu)/` | Deduplicated, merged unbalanced dataset. |

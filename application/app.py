@@ -11,27 +11,29 @@ import streamlit as st
 
 import emailer
 import guidance
+import ai_guidance
 import risk_model as rm
 
-st.set_page_config(page_title="Diabetes Risk Screener", page_icon="🩺", layout="centered")
+st.set_page_config(page_title="Diabetes Risk Screener", layout="centered")
 
 # ------------------------------------------------------------------------------------------------
 # Question catalogue: every one of the 21 survey answers, in the words of the survey.
 # ------------------------------------------------------------------------------------------------
 YES_NO = {
-    "HighBP": ("High blood pressure", "Has a doctor or other health professional ever told you that you have high blood pressure?"),
-    "HighChol": ("High cholesterol", "Has a doctor or other health professional ever told you that your blood cholesterol is high?"),
-    "CholCheck": ("Cholesterol check in the last 5 years", "Have you had your cholesterol checked in the past 5 years?"),
-    "Stroke": ("Ever had a stroke", "Have you ever been told you had a stroke?"),
-    "HeartDiseaseorAttack": ("Heart disease or heart attack", "Have you ever been told you had coronary heart disease or a heart attack?"),
-    "Smoker": ("Smoked 100+ cigarettes in your life", "Have you smoked at least 100 cigarettes (5 packs) in your entire life?"),
-    "PhysActivity": ("Physical activity in the past 30 days", "Any physical activity or exercise in the past 30 days, other than your regular job?"),
-    "Fruits": ("Eats fruit every day", "Do you eat fruit one or more times per day?"),
-    "Veggies": ("Eats vegetables every day", "Do you eat vegetables one or more times per day?"),
-    "HvyAlcoholConsump": ("Heavy drinking", "Men: more than 14 drinks per week. Women: more than 7 drinks per week."),
-    "AnyHealthcare": ("Has health insurance or coverage", "Do you have any kind of health care coverage, including insurance, prepaid plans or government plans?"),
-    "NoDocbcCost": ("Skipped a doctor visit because of cost", "In the past 12 months, was there a time you needed to see a doctor but could not because of the cost?"),
-    "DiffWalk": ("Serious difficulty walking or climbing stairs", "Do you have serious difficulty walking or climbing stairs?"),
+    "HighBP": ("Has a doctor or other health professional ever told you that you have high blood pressure?", None),
+    "HighChol": ("Has a doctor or other health professional ever told you that your blood cholesterol is high?", None),
+    "CholCheck": ("Have you had your cholesterol checked in the past 5 years?", None),
+    "Stroke": ("Have you ever been told that you had a stroke?", None),
+    "HeartDiseaseorAttack": ("Have you ever been told that you had coronary heart disease or a heart attack?", None),
+    "Smoker": ("Have you smoked at least 100 cigarettes (about 5 packs) in your lifetime?", None),
+    "PhysActivity": ("In the past 30 days, have you done any physical activity or exercise outside your regular job?", None),
+    "Fruits": ("Do you eat fruit at least once a day?", None),
+    "Veggies": ("Do you eat vegetables at least once a day?", None),
+    "HvyAlcoholConsump": ("In a typical week, do you drink more than 14 alcoholic drinks if male, or more than 7 if female?",
+                          "This reflects the survey's classification for this feature; it is not a health recommendation."),
+    "AnyHealthcare": ("Do you have any kind of health care coverage, including insurance or a government plan?", None),
+    "NoDocbcCost": ("In the past 12 months, was there a time you needed to see a doctor but could not because of the cost?", None),
+    "DiffWalk": ("Do you have serious difficulty walking or climbing stairs?", None),
 }
 
 # Sections of the form, in order. Only questions the loaded model uses are shown.
@@ -55,7 +57,17 @@ def get_email_config() -> dict:
     return emailer.load_config(secrets)
 
 
+def get_openai_config() -> dict:
+    """Return optional OpenAI settings without exposing the API key in the interface."""
+    try:
+        settings = dict(st.secrets.get("openai", {}))
+    except Exception:
+        settings = {}
+    return ai_guidance.load_config(settings)
+
+
 EMAIL_CFG = get_email_config()
+OPENAI_CFG = get_openai_config()
 
 
 # ------------------------------------------------------------------------------------------------
@@ -102,18 +114,19 @@ with st.sidebar:
 # ------------------------------------------------------------------------------------------------
 # Header
 # ------------------------------------------------------------------------------------------------
-st.title("🩺 Diabetes Risk Screener")
+st.title("Diabetes Risk Screener")
 st.write("Answer a few questions to see whether your responses resemble those of people in the survey who "
          "reported that a health professional had diagnosed them with diabetes.")
 st.info("This school project uses a 2015 U.S. health survey. It does not diagnose diabetes or predict who will "
-        "develop it in the future. Your answers stay in this session unless you choose to email yourself a copy.",
-        icon="ℹ️")
+        "develop it in the future. Your answers stay in this session unless you choose to email a copy or opt in "
+        "to OpenAI-generated guidance.",
+        )
 st.caption(f"The questionnaire uses {len(FEATURES)} answers. You can change any answer before submitting.")
 
 # Units sit outside the form so that the height and weight boxes change as soon as you switch.
 units = None
 if "BMI" in FEATURES:
-    units = st.radio("Units for height and weight", ["Metric (cm, kg)", "Imperial (ft/in, lb)"], horizontal=True)
+    units = st.radio("Which units would you like to use for height and weight?", ["Metric (cm, kg)", "Imperial (ft/in, lb)"], horizontal=True)
 
 # ------------------------------------------------------------------------------------------------
 # The questionnaire updates as answers change; scoring happens only after submission.
@@ -132,20 +145,20 @@ def record(feature, label, code, display):
 
 
 def ask_yes_no(feature, column):
-    label, help_text = YES_NO[feature]
+    question, help_text = YES_NO[feature]
     with column:
-        choice = st.radio(label, ["Yes", "No"], index=None, horizontal=True, help=help_text, key=f"q_{feature}")
-    record(feature, label, None if choice is None else int(choice == "Yes"), choice)
+        choice = st.radio(question, ["Yes", "No"], index=None, horizontal=True, help=help_text, key=f"q_{feature}")
+    record(feature, question, None if choice is None else int(choice == "Yes"), choice)
 
 
 def ask_sex():
-    choice = st.radio("Sex", ["Female", "Male"], index=None, horizontal=True, key="q_Sex",
+    choice = st.radio("What is your sex?", ["Female", "Male"], index=None, horizontal=True, key="q_Sex",
                       help="The survey recorded sex as female or male.")
-    record("Sex", "Sex", None if choice is None else int(choice == "Male"), choice)
+    record("Sex", "Sex category", None if choice is None else int(choice == "Male"), choice)
 
 
 def ask_age():
-    age = st.number_input("Age (years)", min_value=18, max_value=120, value=None, step=1, key="q_Age",
+    age = st.number_input("How old are you, in years?", min_value=18, max_value=120, value=None, step=1, key="q_Age",
                           placeholder="e.g. 45", help="The survey covers adults aged 18 and over.")
     if age is None:
         record("Age", "Age", None, None)
@@ -158,20 +171,20 @@ def ask_height_weight():
     c1, c2 = st.columns(2)
     if units.startswith("Metric"):
         with c1:
-            h = st.number_input("Height (cm)", min_value=100.0, max_value=250.0, value=None, step=1.0,
+            h = st.number_input("What is your height in centimeters?", min_value=100.0, max_value=250.0, value=None, step=1.0,
                                 key="q_h_cm", placeholder="e.g. 165")
         with c2:
-            w = st.number_input("Weight (kg)", min_value=30.0, max_value=300.0, value=None, step=0.5,
+            w = st.number_input("What is your weight in kilograms?", min_value=30.0, max_value=300.0, value=None, step=0.5,
                                 key="q_w_kg", placeholder="e.g. 68")
         height_cm = h
         weight_kg = w
     else:
         with c1:
             f1, f2 = st.columns(2)
-            ft = f1.number_input("Height (ft)", min_value=3, max_value=8, value=None, step=1, key="q_h_ft", placeholder="5")
-            inch = f2.number_input("(in)", min_value=0, max_value=11, value=None, step=1, key="q_h_in", placeholder="7")
+            ft = f1.number_input("What is your height in feet?", min_value=3, max_value=8, value=None, step=1, key="q_h_ft", placeholder="5")
+            inch = f2.number_input("And how many additional inches?", min_value=0, max_value=11, value=None, step=1, key="q_h_in", placeholder="7")
         with c2:
-            lb = st.number_input("Weight (lb)", min_value=66.0, max_value=660.0, value=None, step=1.0,
+            lb = st.number_input("What is your weight in pounds?", min_value=66.0, max_value=660.0, value=None, step=1.0,
                                  key="q_w_lb", placeholder="150")
         height_cm = None if ft is None or inch is None else rm.feet_inches_to_cm(ft, inch)
         weight_kg = None if lb is None else rm.pounds_to_kg(lb)
@@ -191,8 +204,7 @@ def ask_height_weight():
 
 def ask_general_health():
     options = list(rm.GENERAL_HEALTH.values())
-    choice = st.radio("General health", options, index=None, horizontal=True, key="q_GenHlth",
-                      help="In general, how would you rate your overall health?")
+    choice = st.radio("How would you rate your general health?", options, index=None, horizontal=True, key="q_GenHlth")
     code = None if choice is None else options.index(choice) + 1
     record("GenHlth", "General health", code, choice)
 
@@ -222,15 +234,15 @@ for title, feats in SECTIONS:
             elif f == "BMI": ask_height_weight()
             elif f == "GenHlth": ask_general_health()
             elif f == "PhysHlth":
-                ask_days("PhysHlth", "Days in the past 30 when your physical health was not good",
+                ask_days("PhysHlth", "During the past 30 days, for how many days was your physical health not good?",
                          "Include physical illness and injury. 0 means none.")
             elif f == "MentHlth":
-                ask_days("MentHlth", "Days in the past 30 when your mental health was not good",
+                ask_days("MentHlth", "During the past 30 days, for how many days was your mental health not good?",
                          "Include stress, depression and problems with emotions. 0 means none.")
             elif f == "Education":
-                ask_choice("Education", "Highest level of education completed", rm.EDUCATION)
+                ask_choice("Education", "What is the highest level of education you have completed?", rm.EDUCATION)
             elif f == "Income":
-                ask_choice("Income", "Annual household income (US dollars)", rm.INCOME,
+                ask_choice("Income", "What is your annual household income before taxes?", rm.INCOME,
                            "Total income of everyone in the household, before taxes. The survey used US dollars.")
         if yn:                                                # Yes/No questions in two columns
             cols = st.columns(2)
@@ -246,14 +258,23 @@ with st.container(border=True):
         st.caption("Your answers and result will be sent only to the address you enter. Email is not a private "
                    "channel, so use an address you are comfortable with. Leave it blank to skip.")
     else:
-        st.caption("Email delivery is not set up on this computer yet (see `secrets.toml.example`).")
+        st.caption("Email is disabled until SMTP settings are added to `application/.streamlit/secrets.toml`. "
+                   "Use `application/secrets.toml.example` as the template, then restart the app.")
     e1, e2 = st.columns(2)
     email_raw = e1.text_input("Email address", key="q_email", placeholder="you@example.com",
                               disabled=not EMAIL_CFG)
     name_raw = e2.text_input("Your name (for the greeting)", key="q_name", placeholder="optional",
                              disabled=not EMAIL_CFG, max_chars=60)
 
-submitted = st.button("Show my screening result", type="primary", use_container_width=True)
+use_openai = False
+if OPENAI_CFG:
+    use_openai = st.checkbox("Use OpenAI for optional personalized guidance", value=False)
+    st.caption("Only if selected, your screening result and answers are sent to OpenAI to draft guidance. "
+               "Your name and email are not included. API use may incur charges.")
+else:
+    st.caption("OpenAI guidance is unavailable until an API key is configured in `application/.streamlit/secrets.toml`.")
+
+submitted = st.button("**Show the Screening Result**", type="primary", use_container_width=True)
 
 email = (email_raw or "").strip() if EMAIL_CFG else ""
 name = " ".join((name_raw or "").split()) if EMAIL_CFG else ""
@@ -267,8 +288,20 @@ if submitted:
     else:
         prediction = rm.predict(bundle, answers)
         advice = guidance.build(prediction["flagged"], answers, bundle.get("target_recall"))
+        ai_error = None
+        if use_openai:
+            with st.spinner("Preparing personalized guidance..."):
+                personalized, ai_error = ai_guidance.generate(
+                    prediction["flagged"], shown, OPENAI_CFG["api_key"], OPENAI_CFG["model"]
+                )
+            if personalized:
+                advice["sections"].append({
+                    "title": "Personalized reflection from OpenAI",
+                    "items": [personalized["personal_note"]],
+                })
         result = {**prediction, **advice, "inputs": shown, "answer_codes": dict(answers),
-                  "model": chosen.name, "email_status": None}
+                  "model": chosen.name, "email_status": None, "ai_error": ai_error,
+                  "ai_used": bool(use_openai and not ai_error)}
         if email:
             msg = emailer.build_message(email, name, {**prediction, "level": advice["level"]}, shown, advice,
                                         EMAIL_CFG["sender"], chosen.name)
@@ -291,18 +324,23 @@ if result and result["model"] == chosen.name:
     st.header("Your result")
 
     if result["level"] == "higher":
-        st.warning(f"### {result['headline']}\n\n{result['summary']}", icon="⚠️")
+        st.warning(f"### {result['headline']}\n\n{result['summary']}")
     else:
-        st.success(f"### {result['headline']}\n\n{result['summary']}", icon="✅")
+        st.success(f"### {result['headline']}\n\n{result['summary']}")
 
     status = result["email_status"]
     if status:
         ok, address, why = status
         if ok:
             st.success(f"A copy was sent to **{address}**. If it does not arrive in a few minutes, check your spam folder.",
-                       icon="📧")
+                       )
         else:
-            st.warning(f"We could not send the email, but your result is shown here. {why}", icon="📧")
+            st.warning(f"We could not send the email, but your result is shown here. {why}")
+
+    if result.get("ai_error"):
+        st.warning(f"OpenAI guidance could not be generated ({result['ai_error']}). The local screening guidance is shown instead.")
+    elif result.get("ai_used"):
+        st.caption("OpenAI drafted the personalized guidance using the answers you chose to share. Review it as general information only.")
 
     with st.expander("How to read this result"):
         st.write("This is a model screening flag based on 14 answers. The model was trained on a balanced sample "
@@ -313,7 +351,7 @@ if result and result["model"] == chosen.name:
 
     st.header("What you can do next")
     for i, section in enumerate(result["sections"]):
-        with st.expander(f"{section['icon']}  {section['title']}", expanded=(i < 2)):
+        with st.expander(section["title"], expanded=(i < 2 or section["title"] == "Personalized reflection from OpenAI")):
             for item in section["items"]:
                 st.markdown(f"- {item}")
 

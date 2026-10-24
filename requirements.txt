@@ -2,6 +2,7 @@ ipykernel
 joblib
 matplotlib
 numpy
+openai
 pandas
 PyMySQL
 scikit-learn==1.9.1

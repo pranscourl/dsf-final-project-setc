@@ -33,11 +33,24 @@ def load_config(secrets=None) -> dict:
         env = os.environ.get(f"SMTP_{key.upper()}")
         if env:
             cfg[key] = env
-    cfg.setdefault("security", "starttls")
+    cfg["security"] = str(cfg.get("security", "starttls")).strip().lower()
+    if cfg["security"] not in {"starttls", "ssl", "none"}:
+        return {}
+    for key in ("host", "username", "password", "sender"):
+        if key in cfg:
+            cfg[key] = str(cfg[key]).strip()
+    # App passwords are commonly displayed in groups for readability; SMTP expects the characters only.
+    cfg["password"] = "".join(cfg.get("password", "").split())
     cfg.setdefault("port", 465 if cfg["security"] == "ssl" else 587)
     cfg["sender"] = cfg.get("sender") or cfg.get("username")
-    cfg["port"] = int(cfg["port"])
-    return cfg if cfg.get("host") and cfg.get("sender") else {}
+    try:
+        cfg["port"] = int(cfg["port"])
+    except (TypeError, ValueError):
+        return {}
+    required = (cfg.get("host"), cfg.get("sender"), cfg.get("username"), cfg.get("password"))
+    if not all(required) or any(str(value).startswith("your.") or "xxxx" in str(value).lower() for value in required):
+        return {}
+    return cfg
 
 
 # ------------------------------------------------------------------------------------------------
@@ -76,7 +89,7 @@ def build_message(to, name, result, inputs, advice, sender, model_name):
         f"<td style='padding:6px 10px;border-bottom:1px solid #e5e5e5'><strong>{html.escape(str(a))}</strong></td></tr>"
         for q, a in inputs.items())
     sections = "".join(
-        f"<h3 style='margin:24px 0 6px;font-size:16px'>{s['icon']} {html.escape(s['title'])}</h3>"
+        f"<h3 style='margin:24px 0 6px;font-size:16px'>{html.escape(s['title'])}</h3>"
         "<ul style='margin:0;padding-left:20px'>"
         + "".join(f"<li style='margin:6px 0'>{_bold_html(i)}</li>" for i in s["items"]) + "</ul>"
         for s in advice["sections"])
