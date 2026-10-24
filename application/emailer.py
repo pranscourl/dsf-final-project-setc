@@ -133,4 +133,4 @@ def send(msg, cfg, timeout=20):
     except smtplib.SMTPRecipientsRefused:
         return False, "The email server did not accept that address."
     except (smtplib.SMTPException, OSError, TimeoutError) as e:
-        return False, f"Could not reach the email server ({type(e).__name__}: {e})."
+        return False, "Could not reach the email server. Check the mail settings and try again."

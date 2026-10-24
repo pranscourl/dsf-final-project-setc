@@ -1,0 +1,12 @@
+ipykernel
+joblib
+matplotlib
+numpy
+pandas
+PyMySQL
+scikit-learn==1.9.1
+scipy
+seaborn
+SQLAlchemy
+statsmodels
+streamlit

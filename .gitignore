@@ -1,0 +1,13 @@
+# Secrets
+**/.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# System files
+Thumbs.db
+.DS_Store

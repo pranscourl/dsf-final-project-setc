@@ -182,8 +182,13 @@ def ask_height_weight():
         record("BMI", "Height and weight", None, None)
     else:
         bmi = rm.compute_bmi(height_cm, weight_kg)
-        record("BMI", "Height and weight", rm.bmi_to_code(bmi),
-               f"BMI {bmi:.1f} ({rm.bmi_category(bmi)})")
+        if not (rm.BMI_MIN <= bmi <= rm.BMI_MAX):
+            st.error(f"Your height and weight give a BMI of {bmi:.1f}, outside the range this tool was built for "
+                     f"({rm.BMI_MIN}-{rm.BMI_MAX}). Please check them.")
+            record("BMI", "Height and weight", None, None)
+        else:
+            record("BMI", "Height and weight", rm.bmi_to_code(bmi),
+                   f"BMI {bmi:.1f} ({rm.bmi_category(bmi)})")
 
 
 def ask_general_health():
@@ -195,8 +200,9 @@ def ask_general_health():
 
 
 def ask_days(feature, label, help_text):
-    days = st.slider(label, 0, 30, 0, key=f"q_{feature}", help=help_text)
-    record(feature, label, days, f"{days} of 30 days")
+    days = st.number_input(label, min_value=0, max_value=30, value=None, step=1,
+                           key=f"q_{feature}", placeholder="Enter 0–30 days", help=help_text)
+    record(feature, label, days, None if days is None else f"{days} of 30 days")
 
 
 def ask_choice(feature, label, options: dict, help_text=None):
