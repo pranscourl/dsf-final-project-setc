@@ -182,8 +182,12 @@ def ask_height_weight():
         record("BMI", "Height and weight", None, None)
     else:
         bmi = rm.compute_bmi(height_cm, weight_kg)
-        record("BMI", "Height and weight", rm.bmi_to_code(bmi),
-               f"BMI {bmi:.1f} ({rm.bmi_category(bmi)})")
+        if not (rm.BMI_MIN <= bmi <= rm.BMI_MAX):
+            st.error(f"Your height and weight give a BMI of {bmi:.1f}, outside the range this tool was built for "
+                    f"({rm.BMI_MIN}-{rm.BMI_MAX}). Please check them.")
+            record("BMI", "Height and weight", None, None)       # counts as not answered, so no result is shown
+        else:
+            record("BMI", "Height and weight", rm.bmi_to_code(bmi), f"BMI {bmi:.1f} ({rm.bmi_category(bmi)})")
 
 
 def ask_general_health():
