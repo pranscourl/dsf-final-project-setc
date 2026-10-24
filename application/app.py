@@ -6,6 +6,8 @@ Run from this folder with:   streamlit run app.py
 The questions are built from the features stored inside the saved model file, so the app keeps
 working if a different feature set is chosen when the model is retrained.
 """
+import html
+
 import sklearn
 import streamlit as st
 
@@ -15,6 +17,32 @@ import ai_guidance
 import risk_model as rm
 
 st.set_page_config(page_title="Diabetes Risk Screener", layout="centered")
+st.markdown(
+    """
+    <style>
+    .main .block-container {max-width: 900px; padding-top: 2rem; padding-bottom: 3rem;}
+    [data-testid="stAppViewContainer"] {background: linear-gradient(180deg, #f5f9fc 0%, #ffffff 34rem);}
+    [data-testid="stHeader"] {background: transparent;}
+    h1, h2, h3 {letter-spacing: -0.025em;}
+    h1 {color: #183b56; font-weight: 750;}
+    [data-testid="stVerticalBlockBorderWrapper"] > div {border-radius: 16px; border-color: #dce7ee;}
+    [data-testid="stExpander"] {border-radius: 12px; border-color: #dce7ee;}
+    .stButton button[kind="primary"] {border-radius: 12px; min-height: 3.1rem; font-weight: 700;}
+    [data-testid="stProgressBar"] > div > div {background-color: #198b80;}
+    .screening-hero {background: #ffffff; border: 1px solid #dce7ee; border-radius: 20px; padding: 1.5rem 1.7rem; margin: .5rem 0 1.2rem; box-shadow: 0 8px 28px rgba(24,59,86,.06);}
+    .screening-hero .eyebrow {color: #198b80; font-size: .75rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase;}
+    .screening-hero h1 {margin: .4rem 0 .45rem; font-size: 2.3rem;}
+    .screening-hero p {color: #526777; font-size: 1.05rem; margin: 0; max-width: 42rem;}
+    .result-card {border-radius: 18px; padding: 1.35rem 1.5rem; margin: .5rem 0 1.5rem;}
+    .result-card h2 {font-size: 1.45rem; margin: .3rem 0 .5rem;}
+    .result-card p {margin: 0; line-height: 1.6;}
+    .result-higher {background: #fff7e8; border: 1px solid #f0d39c; border-left: 6px solid #bd7b12; color: #443618;}
+    .result-lower {background: #eaf6f2; border: 1px solid #c7e6dc; border-left: 6px solid #198b80; color: #20443b;}
+    .result-card .eyebrow {font-size: .72rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; opacity: .8;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ------------------------------------------------------------------------------------------------
 # Question catalogue: every one of the 21 survey answers, in the words of the survey.
@@ -114,9 +142,12 @@ with st.sidebar:
 # ------------------------------------------------------------------------------------------------
 # Header
 # ------------------------------------------------------------------------------------------------
-st.title("Diabetes Risk Screener")
-st.write("Answer a few questions to see whether your responses resemble those of people in the survey who "
-         "reported that a health professional had diagnosed them with diabetes.")
+st.markdown(
+    "<div class='screening-hero'><div class='eyebrow'>A short health questionnaire</div>"
+    "<h1>Diabetes Risk Screener</h1>"
+    "<p>Answer a few questions to see whether a follow-up conversation with a health professional may be useful.</p></div>",
+    unsafe_allow_html=True,
+)
 st.info("This school project uses a 2015 U.S. health survey. It does not diagnose diabetes or predict who will "
         "develop it in the future. Your answers stay in this session unless you choose to email a copy or opt in "
         "to OpenAI-generated guidance.",
@@ -158,13 +189,15 @@ def ask_sex():
 
 
 def ask_age():
-    age = st.number_input("How old are you, in years?", min_value=18, max_value=120, value=None, step=1, key="q_Age",
-                          placeholder="e.g. 45", help="The survey covers adults aged 18 and over.")
-    if age is None:
+    groups = [rm.age_group_label(code) for code in range(1, 14)]
+    selected = st.selectbox("Which age range are you in?", groups, index=None,
+                            placeholder="Choose an age range", key="q_Age",
+                            help="The survey groups ages into ranges; everyone aged 80 or older shares the top category.")
+    if selected is None:
         record("Age", "Age", None, None)
     else:
-        code = rm.age_to_code(int(age))
-        record("Age", "Age", code, f"{int(age)} years (survey age group {rm.age_group_label(code)})")
+        code = groups.index(selected) + 1
+        record("Age", "Age range", code, selected)
 
 
 def ask_height_weight():
@@ -221,6 +254,36 @@ def ask_choice(feature, label, options: dict, help_text=None):
     record(feature, label, choice, None if choice is None else options[choice])
 
 
+def ask_income():
+    currency = st.radio("Which currency would you like to enter?", ["PHP (₱)", "USD ($)"],
+                        horizontal=True, key="q_income_currency")
+    if currency == "PHP (₱)":
+        annual_php = st.number_input(
+            "What is your household's annual income before taxes in Philippine pesos?",
+            min_value=0.0, max_value=100_000_000.0, value=None, step=10_000.0,
+            key="q_income_php", placeholder="For example, 500000",
+        )
+        st.caption(
+            f"For category matching only, the app converts at ₱{rm.PHP_PER_USD:,.3f} per US$1 "
+            f"(BSP reference rate, {rm.PHP_PER_USD_AS_OF}). This applies the survey's original U.S. dollar "
+            "cutoffs; it does not adjust for Philippine living costs or the age of the 2015 survey."
+        )
+        if annual_php is None:
+            record("Income", "Annual household income", None, None)
+        else:
+            annual_usd = annual_php / rm.PHP_PER_USD
+            code = rm.income_code_from_usd(annual_usd)
+            band = rm.INCOME[code]
+            st.caption(f"Approximate equivalent: US${annual_usd:,.2f} · survey band: {band}")
+            record("Income", "Annual household income", code,
+                   f"₱{annual_php:,.0f} (about US${annual_usd:,.2f}; BRFSS band: {band})")
+    else:
+        label = "What was your annual household income before taxes in U.S. dollars?"
+        choice = st.selectbox(label, list(rm.INCOME), index=None, format_func=rm.INCOME.get,
+                              key="q_income_usd", placeholder="Choose a survey income band")
+        record("Income", label, choice, None if choice is None else rm.INCOME[choice])
+
+
 for title, feats in SECTIONS:
     feats = [f for f in feats if f in FEATURES]
     if not feats:
@@ -242,8 +305,7 @@ for title, feats in SECTIONS:
             elif f == "Education":
                 ask_choice("Education", "What is the highest level of education you have completed?", rm.EDUCATION)
             elif f == "Income":
-                ask_choice("Income", "What is your annual household income before taxes?", rm.INCOME,
-                           "Total income of everyone in the household, before taxes. The survey used US dollars.")
+                ask_income()
         if yn:                                                # Yes/No questions in two columns
             cols = st.columns(2)
             for i, f in enumerate(yn):
@@ -267,12 +329,15 @@ with st.container(border=True):
                              disabled=not EMAIL_CFG, max_chars=60)
 
 use_openai = False
-if OPENAI_CFG:
-    use_openai = st.checkbox("Use OpenAI for optional personalized guidance", value=False)
-    st.caption("Only if selected, your screening result and answers are sent to OpenAI to draft guidance. "
-               "Your name and email are not included. API use may incur charges.")
-else:
-    st.caption("OpenAI guidance is unavailable until an API key is configured in `application/.streamlit/secrets.toml`.")
+with st.container(border=True):
+    st.subheader("Personalized suggestions (optional)")
+    if OPENAI_CFG:
+        use_openai = st.checkbox("Use OpenAI to tailor a hopeful note and practical suggestions", value=False)
+        st.caption("Only if selected, your result and relevant answer-based suggestions are sent to OpenAI. "
+                   "Your full answer list, name, and email are not included. API use may incur charges.")
+    else:
+        st.caption("OpenAI guidance is off. Add an API key to `application/.streamlit/secrets.toml` to enable it; "
+                   "your answers are not sent to OpenAI by default.")
 
 submitted = st.button("**Show the Screening Result**", type="primary", use_container_width=True)
 
@@ -291,13 +356,18 @@ if submitted:
         ai_error = None
         if use_openai:
             with st.spinner("Preparing personalized guidance..."):
+                safe_suggestions = guidance.personal_tips(answers)
                 personalized, ai_error = ai_guidance.generate(
-                    prediction["flagged"], shown, OPENAI_CFG["api_key"], OPENAI_CFG["model"]
+                    prediction["flagged"], safe_suggestions, OPENAI_CFG["api_key"], OPENAI_CFG["model"]
                 )
             if personalized:
+                advice["sections"] = [
+                    section for section in advice["sections"]
+                    if section["title"] != "Follow-up points from your answers"
+                ]
                 advice["sections"].append({
-                    "title": "Personalized reflection from OpenAI",
-                    "items": [personalized["personal_note"]],
+                    "title": "A hopeful note and ideas for you",
+                    "items": [personalized["encouragement"], *personalized["suggestions"]],
                 })
         result = {**prediction, **advice, "inputs": shown, "answer_codes": dict(answers),
                   "model": chosen.name, "email_status": None, "ai_error": ai_error,
@@ -321,12 +391,13 @@ if saved_result and saved_result.get("answer_codes") != answers:
 result = st.session_state.get("result")
 if result and result["model"] == chosen.name:
     st.divider()
-    st.header("Your result")
-
-    if result["level"] == "higher":
-        st.warning(f"### {result['headline']}\n\n{result['summary']}")
-    else:
-        st.success(f"### {result['headline']}\n\n{result['summary']}")
+    st.markdown(
+        f"<div class='result-card result-{result['level']}'>"
+        f"<div class='eyebrow'>Your screening result</div>"
+        f"<h2>{html.escape(result['headline'])}</h2>"
+        f"<p>{html.escape(result['summary'])}</p></div>",
+        unsafe_allow_html=True,
+    )
 
     status = result["email_status"]
     if status:
@@ -351,7 +422,7 @@ if result and result["model"] == chosen.name:
 
     st.header("What you can do next")
     for i, section in enumerate(result["sections"]):
-        with st.expander(section["title"], expanded=(i < 2 or section["title"] == "Personalized reflection from OpenAI")):
+        with st.expander(section["title"], expanded=(i < 2 or section["title"] == "A hopeful note and ideas for you")):
             for item in section["items"]:
                 st.markdown(f"- {item}")
 

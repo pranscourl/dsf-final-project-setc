@@ -11,23 +11,19 @@ def _verdict(flagged, target_recall):
     if flagged:
         return {
             "level": "higher",
-            "headline": "The model flagged these answers for follow-up",
+            "headline": "It may be worth talking with a health professional",
             "summary": (
-                "This screening result is not a diagnosis. The model found a pattern similar to some survey "
-                "respondents who reported diagnosed diabetes. Consider discussing diabetes testing with a "
-                "qualified health professional."
+                "Based on the answers you shared, a follow-up conversation may be helpful. This screening cannot tell "
+                "whether you have diabetes; a health professional can help you decide whether testing makes sense for you."
             ),
         }
 
-    recall_note = " The model was set using a training recall target, but it can still miss cases." if target_recall else ""
     return {
         "level": "lower",
-        "headline": "The model did not flag these answers",
+        "headline": "This screening did not suggest a follow-up",
         "summary": (
-            "This does not rule out diabetes, and the result is not a diagnosis."
-            + recall_note
-            + " If you have symptoms, concerns, or a reason to be screened, discuss testing with a qualified "
-            "health professional."
+            "That may feel reassuring, but no questionnaire can rule out diabetes. If you have symptoms or concerns, "
+            "talk with a health professional about whether testing is right for you."
         ),
     }
 
@@ -42,12 +38,12 @@ def personal_tips(answers):
         ("HeartDiseaseorAttack", "coronary heart disease or a heart attack"),
     ):
         if answers.get(key) == 1:
-            prompts.append(f"You reported {label}; consider mentioning this history if you discuss screening with a health professional.")
+            prompts.append(f"You mentioned {label}. If you speak with a health professional, sharing that history may help give them context.")
 
     if answers.get("Fruits") == 0:
-        prompts.append("You reported eating fruit less than once a day. If you want to make a food change, consider a small, realistic step that fits your preferences and budget.")
+        prompts.append("You said you eat fruit less than once a day. If it feels doable, one small idea is to add a fruit you enjoy to a usual meal or snack.")
     if answers.get("HvyAlcoholConsump") == 1:
-        prompts.append("Your answer met the survey's heavy-drinking category. If alcohol is a concern for you, a health professional can discuss support options.")
+        prompts.append("Your answer matched the survey's higher alcohol-use category. If you want to talk about drinking or making a change, a health professional can help you explore options without judgment.")
     if answers.get("DiffWalk") == 1:
         prompts.append("You reported serious difficulty walking or climbing stairs. Mention this if you ask for advice about activity or screening.")
     if answers.get("PhysHlth", 0) > 0:
@@ -65,17 +61,17 @@ def build(flagged, answers, target_recall=None):
 
     if flagged:
         sections.append({
-            "title": "Suggested next step",
+            "title": "A helpful next step",
             "items": [
-                "Consider asking a qualified health professional whether a blood test is appropriate. Only a health professional can interpret testing and diagnose diabetes.",
+                "If you are concerned, ask a health professional whether a diabetes test would be appropriate for you. Only clinical assessment can diagnose diabetes.",
                 "You can show them this result and the answers you entered. Do not start, stop, or change medication based on this screening result.",
             ],
         })
     else:
         sections.append({
-            "title": "If you still have concerns",
+            "title": "If something still worries you",
             "items": [
-                "A result that was not flagged cannot rule out diabetes. If you have symptoms, concerns, or a reason to be screened, ask a qualified health professional about testing.",
+                "Even when this screening does not suggest follow-up, it cannot rule out diabetes. If you have symptoms or concerns, ask a health professional whether testing would make sense for you.",
                 "You can show them this result and the answers you entered. A test and clinical assessment are needed for diagnosis.",
             ],
         })

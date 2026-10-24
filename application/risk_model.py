@@ -38,6 +38,12 @@ INCOME = {
     7: "$50,000 to under $75,000",
     8: "$75,000 or more",
 }
+# The BRFSS Income cutoffs are in nominal 2015 U.S. dollars. This optional PHP conversion uses
+# the BSP daily reference rate and is only a currency conversion, not a local cost-of-living adjustment.
+# Update from https://www.bsp.gov.ph/statistics/external/day99_data.aspx before future demonstrations.
+INCOME_USD_CUTOFFS = [10_000, 15_000, 20_000, 25_000, 35_000, 50_000, 75_000]
+PHP_PER_USD = 63.419
+PHP_PER_USD_AS_OF = "23 Oct 2026"
 GENERAL_HEALTH = {1: "Excellent", 2: "Very good", 3: "Good", 4: "Fair", 5: "Poor"}
 
 BMI_MIN, BMI_MAX = 12, 98      # range of BMI values the model saw in training
@@ -53,6 +59,11 @@ def age_group_label(code: int) -> str:
         return "80 or older"
     lo = 18 if code == 1 else AGE_UPPER_BOUNDS[code - 2]
     return f"{lo}-{AGE_UPPER_BOUNDS[code - 1] - 1}"
+
+
+def income_code_from_usd(annual_income_usd: float) -> int:
+    """Convert annual household income to the BRFSS income category (codes 1-8)."""
+    return bisect_right(INCOME_USD_CUTOFFS, annual_income_usd) + 1
 
 
 def compute_bmi(height_cm: float, weight_kg: float) -> float:

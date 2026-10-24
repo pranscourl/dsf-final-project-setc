@@ -14,7 +14,7 @@ def load_config(secrets=None):
     return {"api_key": str(api_key).strip(), "model": str(model).strip()}
 
 
-def generate(flagged, answers, api_key, model, timeout=20):
+def generate(flagged, safe_suggestions, api_key, model, timeout=20):
     """Generate short, bounded guidance; return (result, safe_error_message)."""
     try:
         from openai import OpenAI
@@ -23,9 +23,10 @@ def generate(flagged, answers, api_key, model, timeout=20):
         schema = {
             "type": "object",
             "properties": {
-                "personal_note": {"type": "string"},
+                "encouragement": {"type": "string"},
+                "suggestions": {"type": "array", "items": {"type": "string"}},
             },
-            "required": ["personal_note"],
+            "required": ["encouragement", "suggestions"],
             "additionalProperties": False,
         }
         response = client.responses.create(
@@ -33,15 +34,19 @@ def generate(flagged, answers, api_key, model, timeout=20):
             store=False,
             max_output_tokens=300,
             instructions=(
-                "Write one brief, supportive, plain-language personal note for a school-project diabetes screening aid. "
-                "A model flag is not a diagnosis and does not establish that the person has or does not have diabetes. "
-                "Use only the supplied result and answers. You may mention one relevant answer without interpreting it "
-                "as a cause or diagnosis. If flagged, suggest discussing testing with a qualified health professional. "
-                "If not flagged, say this does not rule out diabetes and suggest professional advice if they have concerns. "
-                "Do not give any other health, diet, exercise, or treatment advice; do not recommend medication; do not "
-                "invent facts or repeat sensitive details unnecessarily. Keep it to two sentences. Avoid emojis and markdown."
+                "Write a warm, hopeful, plain-language reflection for a school-project diabetes screening aid. "
+                "The result and medical disclaimer are already shown above, so do not repeat the verdict, say 'the model "
+                "flagged', or restate that this is not a diagnosis. Acknowledge that taking time to check in is a useful "
+                "step. Personalize one or two practical suggestions using ONLY the supplied safe_suggestions; you may "
+                "gently rephrase them but must not add new health claims, diagnoses, diet or exercise prescriptions, or "
+                "treatment advice. If the safe suggestions are empty, offer a supportive invitation to discuss questions "
+                "with a health professional. Never infer causes or future risk. Avoid repeating sensitive answers. "
+                "Keep the encouragement to one or two sentences and provide at most two short suggestions. Avoid emojis and markdown."
             ),
-            input=json.dumps({"flagged": bool(flagged), "answers": answers}, ensure_ascii=False),
+            input=json.dumps({
+                "flagged": bool(flagged),
+                "safe_suggestions": safe_suggestions,
+            }, ensure_ascii=False),
             text={
                 "format": {
                     "type": "json_schema",
@@ -52,10 +57,17 @@ def generate(flagged, answers, api_key, model, timeout=20):
             },
         )
         parsed = json.loads(response.output_text)
-        note = parsed.get("personal_note")
-        if not isinstance(note, str) or not note.strip() or len(note) > 600:
+        encouragement = parsed.get("encouragement")
+        suggestions = parsed.get("suggestions")
+        if (not isinstance(encouragement, str) or not encouragement.strip()
+                or len(encouragement) > 300 or not isinstance(suggestions, list)
+                or len(suggestions) > 2
+                or not all(isinstance(item, str) and item.strip() and len(item) <= 300 for item in suggestions)):
             return None, "the response format was not usable"
-        return {"personal_note": note.strip()}, None
+        return {
+            "encouragement": encouragement.strip(),
+            "suggestions": [item.strip() for item in suggestions],
+        }, None
     except Exception:
         # Do not show exception details: SDK errors can include request or account metadata.
         return None, "the service was unavailable"
