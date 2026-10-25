@@ -20,14 +20,6 @@ REAL_PREVALENCE = 0.14
 # BRFSS codes ---------------------------------------------------------------------------------
 AGE_UPPER_BOUNDS = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80]   # code 1 = 18-24 ... code 13 = 80+
 
-EDUCATION = {
-    1: "Never attended school, or kindergarten only",
-    2: "Grades 1-8 (elementary)",
-    3: "Grades 9-11 (some high school)",
-    4: "Grade 12 or GED (high school graduate)",
-    5: "College 1-3 years (some college or technical school)",
-    6: "College 4+ years (college graduate)",
-}
 INCOME = {
     1: "Less than $10,000",
     2: "$10,000 to under $15,000",

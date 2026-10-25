@@ -10,7 +10,7 @@ The target is `Diabetes_binary`: `1` means the respondent reported a diabetes di
 
 The cleaned, balanced dataset has 70,194 rows. The fixed split used for evaluation has 56,155 real training respondents and 14,039 real test respondents. A separate 200,000-row synthetic training set is retained for comparison; it is not used as the app's default model.
 
-The current app uses **M1**, the 70k real-data logistic regression model, with 14 questions. In the latest shared-test comparison, M1 reached 85.01% recall and 60.21% specificity. A later training-only CV run did not find a reason to replace M1 with the tested feature addition, so M1 remains the app model. The balanced test set makes accuracy and precision higher than they may be in a population with lower diabetes prevalence. The notebooks also report an approximate precision adjustment at 14% prevalence; this is not a calibrated personal probability.
+The app uses **M1**, the 70k real-data logistic regression model, with 14 questions. On the project test set, M1 reached 85.01% recall and 60.21% specificity. Follow-up experiments tested a feature addition, a new 200k CART-synthetic dataset, and L2-regularized logistic regression; none improved the agreed recall-and-specificity rule, so M1 remains the app model. The balanced test set makes accuracy and precision higher than they may be in a population with lower diabetes prevalence. The notebooks also report an approximate precision adjustment at 14% prevalence; this is not a calibrated personal probability.
 
 The current working success rule is:
 
@@ -43,7 +43,7 @@ Open the local address Streamlit prints, usually <http://localhost:8501>. The ap
 4. Change an answer and confirm the previous result clears; submit again to get the updated result.
 5. Try both metric and imperial height/weight entry. Leave the optional email blank unless SMTP is deliberately configured.
 
-The app reports a model screening flag, not a diagnosis. Email is optional and disabled until configured. To enable it, create the config folder, copy `application/secrets.toml.example` to `application/.streamlit/secrets.toml`, fill in an SMTP app password, and keep the secrets file private. `.gitignore` excludes that file.
+The app reports a model screening flag, not a diagnosis. Email is optional and disabled until configured. To enable it, create the config folder, copy `application/secrets.toml.example` to `application/.streamlit/secrets.toml`, fill in an SMTP app password, and keep the secrets file private. `.gitignore` excludes the expected config path and the former misplaced `application/secrets.toml` path.
 
 For household income, users may enter either a BRFSS U.S. dollar band or an annual Philippine-peso amount. The peso amount is converted at the BSP reference rate configured in `application/risk_model.py` (currently ₱63.419 per US$1, dated 23 October 2026) and then mapped to the original BRFSS dollar band. This is a nominal currency conversion only; it does not adjust for Philippine living costs or the fact that the survey cutoffs come from 2015. Update the configured rate from the [BSP daily reference-rate table](https://www.bsp.gov.ph/statistics/external/day99_data.aspx) before future demonstrations. This conversion does not make the U.S.-trained model validated for the Philippines.
 
@@ -69,9 +69,11 @@ Copy-Item application\secrets.toml.example application\.streamlit\secrets.toml
 | `data/08_model_comparison/` | Results from notebook 08's model comparison. |
 | `notebooks/01`–`08` | Extraction, transformation, loading, EDA, initial modeling, regression coursework, synthetic modeling, and the original model comparison. |
 | `notebooks/09_utils/synth_utils.py` | Shared survey-aware synthetic-row generator used by the synthetic-model workflow. |
-| `notebooks/10_model_experiments/` | Nested training-only CV comparison of M1 with a limited feature addition; it keeps the test set closed when CV does not support a change. Its CV reports are in `results/`. |
+| `notebooks/10_model_experiments/` | Three follow-up experiments: training-only feature CV, a 200k CART-synthetic candidate, and regularized logistic regression, with their reports in `results/`. |
 | `scripts/retrain_and_compare_models.py` | Optional command-line rebuild of the saved 70k/200k bundles and their comparison CSVs. It overwrites files in `application/models/`; do not run it unless you intend to rebuild those artifacts. |
 | `requirements.txt` | Python dependencies; scikit-learn is pinned to the version used to save the model bundles. |
+
+The `data/02_clean/diabetes_3categories_clean.csv` artifact is already recoded to the binary target; its filename records the source variant. Duplicate removal also means `diabetes_2categories5050_clean.csv` is no longer exactly balanced. The final balanced dataset used for the model split is `data/04_clean+merged_balanced(cmb)/diabetes_final_clean_merged_balanced.csv`.
 
 The model file in `notebooks/06_multilinearreg/linprob_70k.joblib` is a coursework reference artifact for notebook 08; the app does not load it.
 
@@ -93,15 +95,15 @@ The extraction, transformation, EDA and original modeling notebooks use a local 
 7. Run `notebooks/06_multilinearreg/06_multilinearreg.ipynb` for the course-required linear-probability and BMI regressions (optional for launching the app).
 8. Run the notebooks in `notebooks/07_modeling_cmu(+synthetic200k)/` in order to prepare synthetic training rows, train M2 and evaluate it on the same real test set.
 9. Run `notebooks/08_model_comparison/08_model_comparison.ipynb` for the original six-model comparison. Its decision rule records an earlier group proposal; the current agreed metric and follow-up experiments are in notebook 10.
-10. Run `notebooks/10_model_experiments/01_training_cv_experiments.ipynb` for the current, limited candidate study. Only open the held-out test for a final comparison if training-only CV supports a new candidate.
+10. The follow-up experiments are in `notebooks/10_model_experiments/`: `01_training_cv_experiments.ipynb` is training-only; `02_quality_synthetic_200k.ipynb` and `03_regularized_logreg.ipynb` make documented final comparisons on the fixed test set after training-only selection.
 
-The notebook CSVs allow the app and notebook 10 to use the saved partitions without rebuilding the database. Notebook 10 uses the real training CSV for cross-validation, then reads the held-out test CSV only in its final-comparison notebook after model and threshold choices are fixed.
+The notebook CSVs allow the app and notebook 10 to use the saved partitions without rebuilding the database. Notebook 10 uses the real training CSV for cross-validation. Its two later experiments score selected candidates on the shared fixed test CSV only after their training choices are set. Because that test set has now been reused for several model comparisons, treat those results as exploratory rather than as a fresh independent validation.
 
-## Current model experiment
+## Current model experiments
 
-Notebook 10 compares current M1 with logistic regression adding Education and Physical Activity. It uses nested, stratified cross-validation on the real training CSV; scaling and threshold selection happen within training folds. The held-out test CSV is not read because the feature candidate did not improve on M1 in this run.
+Notebook 10 contains three follow-up studies. The feature-addition notebook uses training-only nested CV. The CART-synthetic experiment reached 85.31% recall but reduced specificity to 59.07%, below M1's 60.21%. The regularized logistic-regression experiment selected L2 `C=0.1` from training-only CV; its final test recall was 84.998% and specificity matched M1 at 60.21%. Neither candidate met the success rule, so M1 remains the app model.
 
-In the latest CV run, M1 ranked ahead of the added-feature candidate on mean specificity, while their mean outer-fold recall estimates were both close to (but slightly below) 85%. No candidate was supported as an improvement, so the notebook does not open the held-out test and the app continues to use M1. The earlier shared-test comparison of M1 and M2 is documented in notebook 08.
+These experiments reused the same fixed test set for final comparisons. Their held-out scores should be described as exploratory comparisons on this dataset, not as independent validation. Any future model work should use training-only validation and, for a genuinely fresh final evaluation, new real respondents.
 
 ## Limitations
 

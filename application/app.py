@@ -3,8 +3,8 @@ Diabetes Risk Screener: a local Streamlit app.
 
 Run from this folder with:   streamlit run app.py
 
-The questions are built from the features stored inside the saved model file, so the app keeps
-working if a different feature set is chosen when the model is retrained.
+The app asks for the features supported by its question catalogue. Its shipped M1 model uses 14
+features; unsupported features stop the app instead of silently producing an incomplete prediction.
 """
 import html
 
@@ -45,7 +45,7 @@ st.markdown(
 )
 
 # ------------------------------------------------------------------------------------------------
-# Question catalogue: every one of the 21 survey answers, in the words of the survey.
+# Question catalogue: only questions supported by the shipped app are listed here.
 # ------------------------------------------------------------------------------------------------
 YES_NO = {
     "HighBP": ("Has a doctor or other health professional ever told you that you have high blood pressure?", None),
@@ -71,7 +71,6 @@ SECTIONS = [
     ("Day-to-day health", ["GenHlth", "PhysHlth", "MentHlth", "DiffWalk"]),
     ("Lifestyle", ["Smoker", "PhysActivity", "Fruits", "Veggies", "HvyAlcoholConsump"]),
     ("Healthcare access", ["AnyHealthcare", "NoDocbcCost"]),
-    ("Education", ["Education"]),
     ("Income", ["Income"]),
 ]
 KNOWN = {f for _, fs in SECTIONS for f in fs}
@@ -249,12 +248,6 @@ def ask_days(feature, label, help_text):
     record(feature, label, days, None if days is None else f"{days} of 30 days")
 
 
-def ask_choice(feature, label, options: dict, help_text=None):
-    choice = st.selectbox(label, list(options), index=None, format_func=options.get, key=f"q_{feature}",
-                          placeholder="Select...", help=help_text)
-    record(feature, label, choice, None if choice is None else options[choice])
-
-
 def ask_income():
     currency = st.radio("Which currency would you like to enter?", ["PHP (₱)", "USD ($)"],
                         horizontal=True, key="q_income_currency")
@@ -303,8 +296,6 @@ for title, feats in SECTIONS:
             elif f == "MentHlth":
                 ask_days("MentHlth", "During the past 30 days, for how many days was your mental health not good?",
                          "Include stress, depression and problems with emotions. 0 means none.")
-            elif f == "Education":
-                ask_choice("Education", "What is the highest level of education you have completed?", rm.EDUCATION)
             elif f == "Income":
                 ask_income()
         if yn:                                                # Yes/No questions in two columns

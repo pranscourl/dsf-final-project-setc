@@ -1,5 +1,6 @@
 # Secrets
 **/.streamlit/secrets.toml
+application/secrets.toml
 
 # Python
 __pycache__/

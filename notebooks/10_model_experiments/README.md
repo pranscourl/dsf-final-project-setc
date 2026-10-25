@@ -1,6 +1,6 @@
 # Notebook 10: Model experiments
 
-This folder contains follow-up experiments that use training-only validation before any final comparison on the fixed test set.
+This folder contains follow-up experiments that use training-only validation before final comparisons on the fixed test set. The same test set has now been used across several experiments, so these scores are exploratory comparisons rather than fresh independent validation.
 
 ## Notebooks
 
